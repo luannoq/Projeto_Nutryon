@@ -120,12 +120,14 @@ export default function Onboarding() {
     } catch (err) {
       console.error('Erro ao finalizar Onboarding:', err);
       if (isUpdate) {
-        // Em revisão, volta para o perfil mesmo com erro
         navigation.navigate('MainTabs');
       } else {
-        // Em cadastro, libera acesso com dados parciais para não travar
+        // No fallback, mantemos o ID vazio para forçar o usuário a sincronizar depois, 
+        // mas guardamos o firebaseUid.
         const fallback = {
           ...tempUser,
+          id: '', // Deixa vazio para não quebrar as queries do Oracle
+          firebaseUid: tempUser.id,
           age: data.age, height: data.height, weight: data.weight,
           gender: data.gender, activityLevel: data.activityLevel, goal: data.goal,
           tdee: macrosResult?.tdee, macros: macrosResult?.macros,

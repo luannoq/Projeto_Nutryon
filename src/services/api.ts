@@ -3,161 +3,148 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from './firebaseConfig';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 
-const API_BASE_URL = 'https://oracleapex.com/ords/projeto_nutryon';
+// ── URL correta para o free tier do Oracle APEX ──────────────────────────────
+// NÃO use oracleapex.com/ords — causa redirect SSL bloqueado no Android.
+// O path /pls/apex/ é obrigatório no free tier.
+const APEX_BASE = 'https://apex.oracle.com/pls/apex/projeto_nutryon/api';
 
+// Instância Axios sem baseURL — URLs completas em cada chamada evitam
+// qualquer ambiguidade de concatenação de barras.
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
     'Accept':       'application/json',
   },
 });
 
-// ─── Helper: ID do usuário logado (vindo do AsyncStorage) ────────────────────
-const getStoredUserId = async (): Promise<string> => {
+// ── Interceptor de log para debug — remova antes de gravar o vídeo ──────────
+api.interceptors.request.use((config) => {
+  console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+  return config;
+});
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    console.error(`[API ERROR] ${err.config?.url}`, err.response?.status, err.message);
+    return Promise.reject(err);
+  }
+);
+
+// ── Helper: ID do usuário logado ─────────────────────────────────────────────
+const getStoredUserId = async (): Promise<string | null> => {
   try {
-    const userJson = await AsyncStorage.getItem('nutryon_user');
-    if (userJson) {
-      const user = JSON.parse(userJson);
-      return String(user.id || '1');
+    const json = await AsyncStorage.getItem('nutryon_user');
+    if (json) {
+      const user = JSON.parse(json);
+      const id = String(user.id || '');
+      // Retorna o ID só se for numérico. Se for UID do Firebase (letras), retorna null.
+      return /^\d+$/.test(id) ? id : null;
     }
-  } catch { /* silencia erros de parse */ }
-  return '1';
+  } catch {}
+  return null;
 };
 
-// ─── SERVIÇOS DE USUÁRIO ─────────────────────────────────────────────────────
+// ── FIREBASE AUTH ─────────────────────────────────────────────────────────────
 
 export const userService = {
   getProfile: async () => ({ id: '1', name: 'Usuário', email: '', goal: 'maintain' }),
   updateProfile: async (user: any) => user,
 
-  // Firebase Auth — cria conta, retorna token + uid real
   register: async (user: any) => {
-    try {
-      console.log('🚀 Registrando no Firebase...');
-      const credential   = await createUserWithEmailAndPassword(auth, user.email, user.password);
-      const firebaseToken = await credential.user.getIdToken();
-      return {
-        token: firebaseToken,
-        user:  { id: credential.user.uid, name: user.name, email: user.email },
-      };
-    } catch (error: any) {
-      console.error('❌ Erro no Register:', error.message);
-      throw error;
-    }
+    const cred  = await createUserWithEmailAndPassword(auth, user.email, user.password);
+    const token = await cred.user.getIdToken();
+    return { token, user: { id: cred.user.uid, name: user.name, email: user.email } };
   },
 
-  // Firebase Auth — autentica e retorna token
   login: async (credentials: any) => {
-    try {
-      console.log('🚀 Autenticando no Firebase...');
-      const credential    = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
-      const firebaseToken  = await credential.user.getIdToken();
-      return {
-        token: firebaseToken,
-        user:  { id: credential.user.uid, name: 'Usuário', email: credentials.email },
-      };
-    } catch (error: any) {
-      console.error('❌ Erro no Login:', error.message);
-      throw error;
-    }
+    const cred  = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
+    const token = await cred.user.getIdToken();
+    return { token, user: { id: cred.user.uid, name: 'Usuário', email: credentials.email } };
   },
 
-  // Oracle APEX — grava/atualiza perfil e retorna ID da PK (TBL_USUARIOS)
-  syncProfileToOracle: async (payload: any) => {
-    try {
-      console.log('🚀 Sincronizando perfil com Oracle APEX...');
-      const response = await fetch(`${API_BASE_URL}/api/usuarios/`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Oracle rejeitou com status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      // Normaliza — o APEX pode devolver id ou id_usuario
-      return { ...data, id: String(data.id || data.id_usuario || '') };
-    } catch (error: any) {
-      console.error('❌ Erro ao sincronizar com Oracle:', error.message);
-      throw error;
-    }
+  // ── Oracle APEX — POST /api/usuarios/ ──────────────────────────────────────
+  // Retorna o id_usuario real do banco para substituir o UID do Firebase
+  // como chave primária de refeições.
+  syncProfileToOracle: async (payload: {
+    nome: string; email: string; senha_hash: string;
+    idade: number; altura: number; peso: number; objetivo: string | null;
+  }) => {
+    const { data } = await api.post(`${APEX_BASE}/usuarios/`, payload);
+    return { ...data, id: String(data.id_usuario || data.id || '') };
   },
 };
 
-// ─── SERVIÇOS DE REFEIÇÃO (CRUD — TBL_REFEICOES) ─────────────────────────────
+// ── CRUD DE REFEIÇÕES — Oracle APEX ──────────────────────────────────────────
 
 export const mealService = {
 
-  // GET filtrado pelo id_usuario — cada usuário vê só as próprias refeições
+  // GET /api/refeicoes/?id_usuario=X
   list: async () => {
     try {
       const userId = await getStoredUserId();
-      const { data } = await api.get(`/refeicoes/?id_usuario=${userId}`);
+      // Se não tiver ID numérico, nem bate no Oracle para não dar erro 500/400
+      if (!userId) return []; 
+      
+      const { data } = await api.get(`${APEX_BASE}/refeicoes/`, {
+        params: { id_usuario: userId },
+      });
       return (data?.items ?? []).map((item: any) => ({
         id:        String(item.id_refeicao),
         name:      item.nome_refeicao,
-        kcal:      Number(item.calorias),
-        protein:   Number(item.proteinas    || 0),
-        carbs:     Number(item.carboidratos || 0),
-        fat:       Number(item.gorduras     || 0),
+        kcal:      Number(item.calorias      ?? 0),
+        protein:   Number(item.proteinas     ?? 0),
+        carbs:     Number(item.carboidratos  ?? 0),
+        fat:       Number(item.gorduras      ?? 0),
         userId:    String(item.id_usuario),
-        timestamp: item.data_registro || new Date().toISOString(),
+        timestamp: item.data_registro ?? new Date().toISOString(),
       }));
-    } catch (e) {
-      console.error('Erro ao listar refeições:', e);
+    } catch (e: any) {
+      console.error('[mealService.list]', e.message);
       return [];
     }
   },
 
-  // POST com todos os macros — calorias + proteína + carbos + gordura
+  // POST /api/refeicoes/
   create: async (meal: any) => {
     const userId = await getStoredUserId();
-    const payload = {
+    const { data } = await api.post(`${APEX_BASE}/refeicoes/`, {
       id_usuario:    Number(userId),
       nome_refeicao: meal.name,
-      calorias:      Number(meal.kcal     || 0),
-      proteinas:     Number(meal.protein  || 0),
-      carboidratos:  Number(meal.carbs    || 0),
-      gorduras:      Number(meal.fat      || 0),
-    };
-    const { data } = await api.post('/refeicoes/', payload);
+      calorias:      Number(meal.kcal     ?? 0),
+      proteinas:     Number(meal.protein  ?? 0),
+      carboidratos:  Number(meal.carbs    ?? 0),
+      gorduras:      Number(meal.fat      ?? 0),
+    });
     return data;
   },
 
-  // PUT com todos os macros
+  // PUT /api/refeicoes/:id
   update: async (id: string, meal: any) => {
-    const payload = {
+    const { data } = await api.put(`${APEX_BASE}/refeicoes/${id}`, {
       nome_refeicao: meal.name,
-      calorias:      Number(meal.kcal    || 0),
-      proteinas:     Number(meal.protein || 0),
-      carboidratos:  Number(meal.carbs   || 0),
-      gorduras:      Number(meal.fat     || 0),
-    };
-    const { data } = await api.put(`/refeicoes/${id}`, payload);
+      calorias:      Number(meal.kcal     ?? 0),
+      proteinas:     Number(meal.protein  ?? 0),
+      carboidratos:  Number(meal.carbs    ?? 0),
+      gorduras:      Number(meal.fat      ?? 0),
+    });
     return data;
   },
 
+  // DELETE /api/refeicoes/:id
   delete: async (id: string) => {
-    await api.delete(`/refeicoes/${id}`);
+    await api.delete(`${APEX_BASE}/refeicoes/${id}`);
   },
 };
 
-// ─── SERVIÇO APEX — Cálculo de TDEE/Macros (PL/SQL fn_calcular_tdee) ─────────
+// ── CÁLCULO DE TDEE/MACROS — PL/SQL no APEX ──────────────────────────────────
 
 export const apexService = {
   calcularMacros: async (params: {
-    peso:            number;
-    altura:          number;
-    idade:           number;
-    sexo:            string;
-    nivel_atividade: string;
-    objetivo:        string;
+    peso: number; altura: number; idade: number;
+    sexo: string; nivel_atividade: string; objetivo: string;
   }) => {
-    const { data } = await api.post('/calcular_macros/', params);
+    const { data } = await api.post(`${APEX_BASE}/calcular_macros/`, params);
     return {
       tdee:   Number(data.tdee),
       macros: {

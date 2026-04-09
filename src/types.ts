@@ -1,9 +1,10 @@
 export type Gender = 'male' | 'female';
-export type ActivityLevel = 'low' | 'moderate' | 'high' | 'very_high';
-export type Goal = 'lose' | 'lose_slow' | 'maintain' | 'gain_slow' | 'gain';
+export type ActivityLevel = 'baixo' | 'moderado' | 'alto' | 'muito_alto';
+export type Goal = 'perder_peso' | 'manter' | 'ganhar_massa';
 
 export interface User {
-  id: string;
+  id: string; // ID numérico do Oracle (PK)
+  firebaseUid?: string; // UID real do Firebase Auth
   name: string;
   email: string;
   password?: string;

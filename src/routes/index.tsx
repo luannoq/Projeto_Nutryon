@@ -77,6 +77,7 @@ function TabNavigator() {
 // metas pelo Profile sem causar crash de rota não encontrada.
 function AppNavigator() {
   const { themeMode, toggleTheme } = useTheme();
+  const { user } = useAuth(); // Adicione isso para ler o usuário logado
   const isDark = themeMode === 'dark';
 
   const headerRight = () => (
@@ -89,8 +90,13 @@ function AppNavigator() {
     </TouchableOpacity>
   );
 
+  // Verifica se o usuário tem a meta calculada
+  const hasMacros = !!user?.tdee;
+
   return (
     <AppStack.Navigator
+      // Se não tem macro, a rota inicial é OBRIGATORIAMENTE o Onboarding
+      initialRouteName={hasMacros ? 'MainTabs' : 'Onboarding'}
       screenOptions={{
         headerStyle:       { backgroundColor: isDark ? '#0B1120' : '#FFFFFF' },
         headerTintColor:   isDark ? '#F8FAFC' : '#0F172A',
@@ -103,11 +109,12 @@ function AppNavigator() {
         component={TabNavigator}
         options={{ headerTitle: 'Nutryon' }}
       />
-      {/* Onboarding de revisão — acessível pelo Profile para usuários logados */}
       <AppStack.Screen
         name="Onboarding"
         component={Onboarding}
-        options={{ headerTitle: 'Atualizar Metas', headerShown: true }}
+        options={{ headerTitle: 'Configuração Inicial', headerShown: true }}
+        // Passa o parâmetro isUpdate como true se ele já estiver logado
+        initialParams={{ isUpdate: true }}
       />
     </AppStack.Navigator>
   );
