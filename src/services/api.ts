@@ -39,7 +39,8 @@ const getStoredUserId = async (): Promise<string | null> => {
 };
 
 // ── FIREBASE AUTH ─────────────────────────────────────────────────────────────
-
+// Perfil real é gerido pelo AuthContext (AsyncStorage) após login/onboarding.
+// Estas funções existem apenas como fallback para o hook useProfile do TanStack Query.
 export const userService = {
   getProfile: async () => ({ id: '1', name: 'Usuário', email: '', goal: 'maintain' }),
   updateProfile: async (user: any) => user,
