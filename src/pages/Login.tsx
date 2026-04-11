@@ -35,11 +35,44 @@ export default function Login() {
     setError('');
 
     try {
-      // Chama userService.login — retorna mock agora, APEX depois
-      const response = await userService.login({ email, password });
-      await login(response.token, response.user);
-    } catch (err) {
-      setError('Credenciais inválidas. Tente novamente.');
+      // 1. Faz o login no Firebase. 
+      // O 'as any' aqui evita o erro de "response is unknown"
+      const response = await userService.login({ email, password }) as any;
+
+      // 2. Sincroniza com o Oracle apenas para recuperar o id_usuario numérico.
+      //    Enviamos os dados reais do contexto se já existirem; caso contrário usamos
+      //    valores neutros que o APEX ignora no UPDATE (upsert por email).
+      const storedJson = await import('@react-native-async-storage/async-storage')
+        .then(m => m.default.getItem('nutryon_user'));
+      const storedUser = storedJson ? JSON.parse(storedJson) : null;
+
+      const oracleUser = await userService.syncProfileToOracle({
+        nome:       response.user.name || storedUser?.name || 'Usuário',
+        email:      response.user.email,
+        senha_hash: 'firebase-auth',
+        idade:      storedUser?.age    || 0,
+        altura:     storedUser?.height || 0,
+        peso:       storedUser?.weight || 0,
+        objetivo:   storedUser?.goal   || null,
+      }) as any;
+
+      console.log("[LOGIN] ID Oracle recuperado:", oracleUser.id);
+
+      // 3. Atualiza o contexto global com o ID do Oracle
+      // Isso é o que libera o salvamento das refeições!
+      await login(response.token, {
+        ...response.user,
+        id: oracleUser.id 
+      });
+
+    } catch (err: any) {
+      console.error("[LOGIN ERROR]", err.message);
+      // Se o erro for 403, a gente já sabe que é o firewall
+      if (err.message?.includes('403')) {
+         setError('Erro de permissão no servidor. Verifique o Firewall.');
+      } else {
+         setError('Credenciais inválidas ou erro de conexão.');
+      }
     } finally {
       setIsLoading(false);
     }

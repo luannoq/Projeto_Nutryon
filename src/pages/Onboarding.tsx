@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { apexService, userService } from '../services/api';
 
 export default function Onboarding() {
@@ -13,6 +14,9 @@ export default function Onboarding() {
   // ── Detecta o modo de uso ─────────────────────────────────────────────────
   // isUpdate = true  → usuário logado refazendo metas pelo Profile
   // isUpdate = false → usuário novo vindo do Register
+  const { themeMode } = useTheme();
+  const isDark = themeMode === 'dark';
+
   const isUpdate: boolean = route.params?.isUpdate === true;
 
   // Dados temporários do Firebase passados pelo Register (só no fluxo novo)
@@ -92,7 +96,10 @@ export default function Onboarding() {
         });
 
         // Volta para as abas — sem novo login pois já está autenticado
-        navigation.navigate('MainTabs');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        });
 
       } else {
         // ── Cadastro novo: sincroniza Oracle e faz login definitivo ────────
@@ -120,7 +127,23 @@ export default function Onboarding() {
     } catch (err) {
       console.error('Erro ao finalizar Onboarding:', err);
       if (isUpdate) {
-        navigation.navigate('MainTabs');
+        // Mesmo com erro na API, garantimos o salvamento local para não travar o app
+        await updateUser({
+          ...user!,
+          age:           data.age,
+          height:        data.height,
+          weight:        data.weight,
+          gender:        data.gender as any,
+          activityLevel: data.activityLevel as any,
+          goal:          data.goal as any,
+          tdee:          macrosResult?.tdee,
+          macros:        macrosResult?.macros,
+        });
+
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        });
       } else {
         // No fallback, mantemos o ID vazio para forçar o usuário a sincronizar depois, 
         // mas guardamos o firebaseUid.
@@ -147,87 +170,95 @@ export default function Onboarding() {
 
   const prevStep = () => setStep(s => s - 1);
 
-  const renderStep = () => {
+  const renderStep = (t: { textCol: string; primary: string; cardBg: string; mutedCol: string; inputBg: string; borderC: string }) => {
+    const cardStyle    = [styles.card,    { backgroundColor: t.cardBg, borderColor: t.borderC }];
+    const cardActive   = [styles.card, styles.cardActive, { backgroundColor: isDark ? 'rgba(108,159,255,0.15)' : '#EBF4FF', borderColor: t.primary }];
+    const titleStyle   = [styles.title,  { color: t.textCol }];
+    const cardTextStyle= [styles.cardText,{ color: t.textCol }];
+    const inputStyle   = [styles.inputBig, { color: t.primary, borderColor: t.primary, backgroundColor: t.inputBg }];
+
     switch (step) {
       case 1:
         return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.title}>Qual é o seu gênero?</Text>
-            <TouchableOpacity style={[styles.card, data.gender === 'female' && styles.cardActive]} onPress={() => updateField('gender', 'female')}>
-              <Text style={styles.cardText}>Mulher</Text>
+          <>
+            <Text style={titleStyle}>Qual é o seu gênero?</Text>
+            <TouchableOpacity style={data.gender === 'female' ? cardActive : cardStyle} onPress={() => updateField('gender', 'female')}>
+              <Text style={cardTextStyle}>Mulher</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.card, data.gender === 'male' && styles.cardActive]} onPress={() => updateField('gender', 'male')}>
-              <Text style={styles.cardText}>Homem</Text>
+            <TouchableOpacity style={data.gender === 'male' ? cardActive : cardStyle} onPress={() => updateField('gender', 'male')}>
+              <Text style={cardTextStyle}>Homem</Text>
             </TouchableOpacity>
-          </View>
+          </>
         );
       case 2:
         return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.title}>Qual a sua idade?</Text>
-            <TextInput style={styles.inputBig} keyboardType="numeric" value={String(data.age)} onChangeText={(t) => updateField('age', Number(t) || 0)} />
-          </View>
+          <>
+            <Text style={titleStyle}>Qual a sua idade?</Text>
+            <TextInput style={inputStyle} keyboardType="numeric" value={String(data.age)} onChangeText={(v) => updateField('age', Number(v) || 0)} />
+          </>
         );
       case 3:
         return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.title}>Qual a sua altura (cm)?</Text>
-            <TextInput style={styles.inputBig} keyboardType="numeric" value={String(data.height)} onChangeText={(t) => updateField('height', Number(t) || 0)} />
-          </View>
+          <>
+            <Text style={titleStyle}>Qual a sua altura (cm)?</Text>
+            <TextInput style={inputStyle} keyboardType="numeric" value={String(data.height)} onChangeText={(v) => updateField('height', Number(v) || 0)} />
+          </>
         );
       case 4:
         return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.title}>Qual o seu peso atual (kg)?</Text>
-            <TextInput style={styles.inputBig} keyboardType="numeric" value={String(data.weight)} onChangeText={(t) => updateField('weight', Number(t) || 0)} />
-          </View>
+          <>
+            <Text style={titleStyle}>Qual o seu peso atual (kg)?</Text>
+            <TextInput style={inputStyle} keyboardType="numeric" value={String(data.weight)} onChangeText={(v) => updateField('weight', Number(v) || 0)} />
+          </>
         );
       case 5:
         return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.title}>Nível de atividade?</Text>
+          <>
+            <Text style={titleStyle}>Nível de atividade?</Text>
             {[
-              { id: 'baixo',      label: 'Baixo (Sedentário)'       },
-              { id: 'moderado',   label: 'Moderado (Ativo)'          },
-              { id: 'alto',       label: 'Alto (Exercício regular)'  },
-              { id: 'muito_alto', label: 'Muito Alto (Atleta)'       },
+              { id: 'baixo',      label: 'Baixo (Sedentário)'      },
+              { id: 'moderado',   label: 'Moderado (Ativo)'         },
+              { id: 'alto',       label: 'Alto (Exercício regular)' },
+              { id: 'muito_alto', label: 'Muito Alto (Atleta)'      },
             ].map(lvl => (
-              <TouchableOpacity key={lvl.id} style={[styles.card, data.activityLevel === lvl.id && styles.cardActive]} onPress={() => updateField('activityLevel', lvl.id)}>
-                <Text style={styles.cardText}>{lvl.label}</Text>
+              <TouchableOpacity key={lvl.id} style={data.activityLevel === lvl.id ? cardActive : cardStyle} onPress={() => updateField('activityLevel', lvl.id)}>
+                <Text style={cardTextStyle}>{lvl.label}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </>
         );
       case 6:
         return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.title}>Selecione seu objetivo</Text>
+          <>
+            <Text style={titleStyle}>Selecione seu objetivo</Text>
             {[
               { id: 'perder_peso',  label: 'Perder peso'   },
               { id: 'manter',       label: 'Manter o peso' },
               { id: 'ganhar_massa', label: 'Ganhar massa'  },
             ].map(goal => (
-              <TouchableOpacity key={goal.id} style={[styles.card, data.goal === goal.id && styles.cardActive]} onPress={() => updateField('goal', goal.id)}>
-                <Text style={styles.cardText}>{goal.label}</Text>
+              <TouchableOpacity key={goal.id} style={data.goal === goal.id ? cardActive : cardStyle} onPress={() => updateField('goal', goal.id)}>
+                <Text style={cardTextStyle}>{goal.label}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </>
         );
       case 7:
         return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.title}>Necessidades Diárias</Text>
-            <View style={styles.resultBox}>
-              <Text style={styles.resultText}>{macrosResult?.tdee || '---'}</Text>
-              <Text style={styles.macroSubtitle}>KCAL / DIA</Text>
+          <>
+            <Text style={titleStyle}>Necessidades Diárias</Text>
+            <View style={[styles.resultBox, { backgroundColor: t.cardBg }]}>
+              <Text style={[styles.resultText, { color: t.textCol }]}>{macrosResult?.tdee || '---'}</Text>
+              <Text style={[styles.macroSubtitle, { color: t.primary }]}>KCAL / DIA</Text>
             </View>
-            <View style={styles.macrosContainer}>
-              <Text style={styles.macroText}>🥩 Proteína: {macrosResult?.macros?.protein || '--'}g</Text>
-              <Text style={styles.macroText}>🍚 Carbos: {macrosResult?.macros?.carbs || '--'}g</Text>
-              <Text style={styles.macroText}>🥑 Gordura: {macrosResult?.macros?.fat || '--'}g</Text>
+            <View style={[styles.macrosContainer, { backgroundColor: t.cardBg }]}>
+              <Text style={[styles.macroText, { color: t.mutedCol }]}>🥩 Proteína: {macrosResult?.macros?.protein || '--'}g</Text>
+              <Text style={[styles.macroText, { color: t.mutedCol }]}>🍚 Carbos: {macrosResult?.macros?.carbs || '--'}g</Text>
+              <Text style={[styles.macroText, { color: t.mutedCol }]}>🥑 Gordura: {macrosResult?.macros?.fat || '--'}g</Text>
             </View>
-          </View>
+          </>
         );
+      default:
+        return null;
     }
   };
 
@@ -238,24 +269,34 @@ export default function Onboarding() {
 
   const finishLabel = isUpdate ? 'Salvar novas metas' : 'Ir para o Dashboard';
 
+  const bg      = isDark ? '#0B1120' : '#F4F7FB';
+  const cardBg  = isDark ? '#1E293B' : '#FFFFFF';
+  const textCol = isDark ? '#F8FAFC' : '#0F172A';
+  const mutedCol= isDark ? '#94A3B8' : '#64748B';
+  const primary = isDark ? '#6C9FFF' : '#0058bb';
+  const inputBg = isDark ? '#0F172A' : '#FFFFFF';
+  const borderC = isDark ? '#334155' : '#E2E8F0';
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+      <View style={[styles.header, { backgroundColor: bg }]}>
         {step > 1 && step < 7 && (
           <TouchableOpacity onPress={prevStep} style={styles.backBtn}>
-            <Text style={styles.backText}>{'<'}</Text>
+            <Text style={[styles.backText, { color: primary }]}>{'<'}</Text>
           </TouchableOpacity>
         )}
-        <Text style={styles.stepText}>Passo {step} de 7</Text>
+        <Text style={[styles.stepText, { color: mutedCol }]}>Passo {step} de 7</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {renderStep()}
+        <View style={styles.stepContainer}>
+          {renderStep({ textCol, primary, cardBg, mutedCol, inputBg, borderC })}
+        </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { backgroundColor: cardBg, borderTopColor: borderC, borderTopWidth: 1 }]}>
         <TouchableOpacity
-          style={[styles.btn, (isNextDisabled || isCalculating) && styles.btnDisabled]}
+          style={[styles.btn, { backgroundColor: primary }, (isNextDisabled || isCalculating) && styles.btnDisabled]}
           onPress={nextStep}
           disabled={isNextDisabled || isCalculating}
         >

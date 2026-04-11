@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where adb:*)",
+      "Read(//c/Users/Luann/AppData/Local/Android/Sdk/**)",
+      "Bash(powershell -Command \"Get-ChildItem -Path 'C:\\\\Users\\\\Luann' -Recurse -Filter 'adb.exe' -ErrorAction SilentlyContinue | Select-Object -First 3 -ExpandProperty FullName\")"
+    ]
+  }
+}
