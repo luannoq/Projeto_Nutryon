@@ -2,13 +2,11 @@
 
 **Sprint 3 — Mobile App Development | FIAP**
 
-**Autores:** 
-
-Victor Rodrigues De Lima Lourenco | RM560087
-Renato Silva Alexandre Bezerra | RM560928
-Luann Noqueli Klochko | RM560313V
-Lucas Higuti Fontanezi  |  RM561120
-
+## 👥 Integrantes
+- **Renato** (RM560928)
+- **Victor** (RM560087)
+- **Luan Noqueli Klochko** (RM560313)
+- **Lucas Higuti Fontanezi** (RM561120)
 
 ---
 
