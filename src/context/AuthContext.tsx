@@ -40,9 +40,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (token: string, user: User) => {
     try {
+      let finalUser = user;
+
+      // ── MÁGICA DA RESTAURAÇÃO DO BACKUP ──
+      // Se o usuário logando não tem TDEE (metas), tenta achar o backup salvo pelo email dele
+      if (!finalUser.tdee && finalUser.email) {
+        const backupJson = await AsyncStorage.getItem(`nutryon_backup_${finalUser.email}`);
+        if (backupJson) {
+          const backupUser = JSON.parse(backupJson);
+          // Mescla os dados recebidos com os dados do backup
+          finalUser = { ...finalUser, ...backupUser };
+          console.log('[Auth] Backup do perfil restaurado com sucesso para:', finalUser.email);
+        }
+      }
+
       await AsyncStorage.setItem('nutryon_token', token);
-      await AsyncStorage.setItem('nutryon_user', JSON.stringify(user));
-      setState({ token, user, isAuthenticated: true, isLoading: false });
+      await AsyncStorage.setItem('nutryon_user', JSON.stringify(finalUser));
+      
+      // Cria ou Atualiza o backup permanente
+      if (finalUser.email) {
+        await AsyncStorage.setItem(`nutryon_backup_${finalUser.email}`, JSON.stringify(finalUser));
+      }
+
+      setState({ token, user: finalUser, isAuthenticated: true, isLoading: false });
     } catch (error) {
       console.error('Erro ao salvar sessão:', error);
     }
@@ -50,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      // Apaga apenas a sessão ativa, mantendo o backup intacto para o próximo login
       await AsyncStorage.removeItem('nutryon_token');
       await AsyncStorage.removeItem('nutryon_user');
       setState({ token: null, user: null, isAuthenticated: false, isLoading: false });
@@ -61,6 +82,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateUser = async (user: User) => {
     try {
       await AsyncStorage.setItem('nutryon_user', JSON.stringify(user));
+      
+      // Atualiza também o backup permanente sempre que o usuário for atualizado
+      if (user.email) {
+        await AsyncStorage.setItem(`nutryon_backup_${user.email}`, JSON.stringify(user));
+      }
+
       setState(prev => ({ ...prev, user }));
     } catch (error) {
       console.error('Erro ao atualizar usuário:', error);

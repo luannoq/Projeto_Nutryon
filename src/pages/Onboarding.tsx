@@ -5,6 +5,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { apexService, userService } from '../services/api';
+import { Alert } from 'react-native';
 
 export default function Onboarding() {
   const navigation = useNavigation<any>();
@@ -53,12 +54,14 @@ export default function Onboarding() {
         objetivo:        data.goal || 'manter',
       });
       setMacrosResult(resultado);
-      setStep(7);
+      setStep(7); // Só avança se deu tudo certo!
     } catch (err) {
       console.error('Erro no Oracle (calcularMacros):', err);
-      // Fallback para não travar a apresentação
-      setMacrosResult({ tdee: 2500, macros: { protein: 150, carbs: 300, fat: 80 } });
-      setStep(7);
+      // Aqui avisamos o utilizador e NÃO AVANÇAMOS de ecrã:
+      Alert.alert(
+        "Erro no Cálculo", 
+        "Não foi possível calcular as tuas metas no servidor. Por favor, verifica os teus dados ou tenta novamente mais tarde."
+      );
     } finally {
       setIsCalculating(false);
     }
@@ -79,8 +82,7 @@ export default function Onboarding() {
       };
 
       if (isUpdate) {
-        // ── Revisão de perfil: PUT no Oracle + atualiza contexto ───────────
-        // Usa syncProfileToOracle como upsert (o APEX deve aceitar PUT ou POST)
+        // ── Revisão de perfil ───────────
         await userService.syncProfileToOracle(payload);
 
         await updateUser({
@@ -95,14 +97,19 @@ export default function Onboarding() {
           macros:        macrosResult?.macros,
         });
 
-        // Volta para as abas — sem novo login pois já está autenticado
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs' }],
-        });
+        // IMPORTANTE: Reseta o step para evitar que, ao voltar aqui, esteja no passo 7
+        setStep(1); 
+
+        const navState = navigation.getState();
+        if (navState && navState.routeNames.includes('MainTabs')) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'MainTabs' }],
+          });
+        }
 
       } else {
-        // ── Cadastro novo: sincroniza Oracle e faz login definitivo ────────
+        // ── Cadastro novo ────────
         const oracleResponse = await userService.syncProfileToOracle(payload);
         const oracleId = String(
           oracleResponse?.id || oracleResponse?.id_usuario || tempUser.id || '1'
@@ -121,42 +128,15 @@ export default function Onboarding() {
           macros:        macrosResult?.macros,
         };
 
-        // Login definitivo — Routes troca para AppNavigator automaticamente
+        // Reseta o step antes do login para garantir limpeza de estado
+        setStep(1); 
+        
+        // O login troca o motor de navegação
         await login(tempToken, finalUser);
       }
     } catch (err) {
       console.error('Erro ao finalizar Onboarding:', err);
-      if (isUpdate) {
-        // Mesmo com erro na API, garantimos o salvamento local para não travar o app
-        await updateUser({
-          ...user!,
-          age:           data.age,
-          height:        data.height,
-          weight:        data.weight,
-          gender:        data.gender as any,
-          activityLevel: data.activityLevel as any,
-          goal:          data.goal as any,
-          tdee:          macrosResult?.tdee,
-          macros:        macrosResult?.macros,
-        });
-
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs' }],
-        });
-      } else {
-        // No fallback, mantemos o ID vazio para forçar o usuário a sincronizar depois, 
-        // mas guardamos o firebaseUid.
-        const fallback = {
-          ...tempUser,
-          id: '', // Deixa vazio para não quebrar as queries do Oracle
-          firebaseUid: tempUser.id,
-          age: data.age, height: data.height, weight: data.weight,
-          gender: data.gender, activityLevel: data.activityLevel, goal: data.goal,
-          tdee: macrosResult?.tdee, macros: macrosResult?.macros,
-        };
-        await login(tempToken, fallback);
-      }
+      // ... (mantenha seu bloco catch de erro atual)
     } finally {
       setIsCalculating(false);
     }

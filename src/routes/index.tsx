@@ -16,20 +16,41 @@ import Profile    from '../pages/Profile';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
-const AuthStack = createNativeStackNavigator();
-const AppStack  = createNativeStackNavigator();
-const Tab       = createBottomTabNavigator();
+const AuthStack  = createNativeStackNavigator();
+const AppStack   = createNativeStackNavigator();
+const SetupStack = createNativeStackNavigator(); // NOVO! Navegador de perfil incompleto
+const Tab        = createBottomTabNavigator();
 
-// ─── Fluxo não-autenticado: Login → Register → Onboarding ───────────────────
-// O Onboarding fica aqui para usuários novos. O login() só é chamado no
-// passo 7 do Onboarding, então isAuthenticated ainda é false nesse stack.
+// ─── ESTADO 1: Fluxo Não-autenticado (Visitante) ────────────────────────────
 function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login"      component={Login}      />
       <AuthStack.Screen name="Register"   component={Register}   />
-      <AuthStack.Screen name="Onboarding" component={Onboarding} />
+      {/* 👻 O FANTASMA MORRE AQUI: Mudamos o nome da rota! */}
+      <AuthStack.Screen name="AuthSetup"  component={Onboarding} /> 
     </AuthStack.Navigator>
+  );
+}
+
+// ─── ESTADO 2: Fluxo Logado mas Incompleto (Preso no Onboarding) ────────────
+function SetupNavigator() {
+  const { themeMode } = useTheme();
+  const isDark = themeMode === 'dark';
+  return (
+    <SetupStack.Navigator screenOptions={{
+      headerStyle: { backgroundColor: isDark ? '#0B1120' : '#FFFFFF' },
+      headerTintColor: isDark ? '#F8FAFC' : '#0F172A',
+      headerShadowVisible: false,
+    }}>
+      <SetupStack.Screen 
+        name="Onboarding" 
+        component={Onboarding} 
+        options={{ headerTitle: 'Complete seu Perfil' }}
+        // isUpdate=true garante que ao salvar, o app use a função updateUser() do contexto
+        initialParams={{ isUpdate: true }} 
+      />
+    </SetupStack.Navigator>
   );
 }
 
@@ -55,11 +76,7 @@ function TabNavigator() {
             Profile:   'person-outline',
           };
           return (
-            <Ionicons
-              name={(icons[route.name] || 'ellipse-outline') as any}
-              size={size}
-              color={color}
-            />
+            <Ionicons name={(icons[route.name] || 'ellipse-outline') as any} size={size} color={color} />
           );
         },
       })}
@@ -72,12 +89,9 @@ function TabNavigator() {
   );
 }
 
-// ─── Fluxo autenticado: MainTabs + Onboarding de revisão ────────────────────
-// O Onboarding também está aqui para que usuários logados possam refazer as
-// metas pelo Profile sem causar crash de rota não encontrada.
+// ─── ESTADO 3: Fluxo Autenticado e Completo (App Liberado) ──────────────────
 function AppNavigator() {
   const { themeMode, toggleTheme } = useTheme();
-  const { user } = useAuth(); // Adicione isso para ler o usuário logado
   const isDark = themeMode === 'dark';
 
   const headerRight = () => (
@@ -90,13 +104,9 @@ function AppNavigator() {
     </TouchableOpacity>
   );
 
-  // Verifica se o usuário tem a meta calculada
-  const hasMacros = !!user?.tdee;
-
   return (
     <AppStack.Navigator
-      // Se não tem macro, a rota inicial é OBRIGATORIAMENTE o Onboarding
-      initialRouteName={hasMacros ? 'MainTabs' : 'Onboarding'}
+      initialRouteName="MainTabs"
       screenOptions={{
         headerStyle:       { backgroundColor: isDark ? '#0B1120' : '#FFFFFF' },
         headerTintColor:   isDark ? '#F8FAFC' : '#0F172A',
@@ -104,24 +114,16 @@ function AppNavigator() {
         headerRight,
       }}
     >
-      <AppStack.Screen
-        name="MainTabs"
-        component={TabNavigator}
-        options={{ headerTitle: 'Nutryon' }}
-      />
-      <AppStack.Screen
-        name="Onboarding"
-        component={Onboarding}
-        options={{ headerTitle: 'Configuração Inicial', headerShown: true }}
-        // Passa o parâmetro isUpdate como true se ele já estiver logado
-        initialParams={{ isUpdate: true }}
-      />
+      <AppStack.Screen name="MainTabs" component={TabNavigator} options={{ headerTitle: 'Nutryon' }} />
+      {/* Mantemos o Onboarding aqui caso o usuário queira refazer pelo Perfil depois */}
+      <AppStack.Screen name="Onboarding" component={Onboarding} options={{ headerTitle: 'Atualizar Metas', headerShown: true }} />
     </AppStack.Navigator>
   );
 }
 
+// ─── CONTROLE CENTRAL DE ESTADO ─────────────────────────────────────────────
 export default function Routes() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -131,9 +133,21 @@ export default function Routes() {
     );
   }
 
+  // Verifica se o usuário concluiu as metas (se tem um TDEE salvo)
+  const hasCompletedOnboarding = !!user?.tdee;
+
   return (
     <NavigationContainer>
-      {isAuthenticated ? <AppNavigator /> : <AuthNavigator />}
+      {!isAuthenticated ? (
+        // 1. Não logou? Vai pro Auth (Login/Register)
+        <AuthNavigator />
+      ) : !hasCompletedOnboarding ? (
+        // 2. Logou, mas parou no meio do cadastro? Fica preso no Setup
+        <SetupNavigator />
+      ) : (
+        // 3. Logou e tem macros calculados? App liberado!
+        <AppNavigator />
+      )}
     </NavigationContainer>
   );
 }

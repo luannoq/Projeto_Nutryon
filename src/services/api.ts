@@ -141,20 +141,29 @@ export const mealService = {
 
 // ── CÁLCULO DE TDEE/MACROS — PL/SQL no APEX ──────────────────────────────────
 
+// ── CÁLCULO DE TDEE/MACROS — PL/SQL no APEX ──────────────────────────────────
+
 export const apexService = {
   calcularMacros: async (params: {
     peso: number; altura: number; idade: number;
     sexo: string; nivel_atividade: string; objetivo: string;
   }) => {
-    // Axios limpinho porque os headers já estão na configuração global
     const { data } = await api.post(`${APEX_BASE}/calcular_macros/`, params);
 
+    const item = data?.items?.[0] || data || {};
+    const tdeeValue = Number(item.tdee || item.TDEE || 0);
+
+    // Se o banco falhar ou devolver zero, nós lançamos o erro em vez de simular!
+    if (!tdeeValue || isNaN(tdeeValue) || tdeeValue === 0) {
+      throw new Error("Erro no servidor: O cálculo retornou 0 calorias.");
+    }
+
     return {
-      tdee:   Number(data.tdee),
+      tdee:   tdeeValue,
       macros: {
-        protein: Number(data.proteinas),
-        carbs:   Number(data.carboidratos),
-        fat:     Number(data.gorduras),
+        protein: Number(item.proteinas || item.PROTEINAS || 0),
+        carbs:   Number(item.carboidratos || item.CARBOIDRATOS || 0),
+        fat:     Number(item.gorduras || item.GORDURAS || 0),
       },
     };
   },

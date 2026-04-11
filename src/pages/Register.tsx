@@ -47,7 +47,7 @@ export default function Register() {
 
       // NÃO chama login() aqui. O isAuthenticated continua false.
       // Passa token e user como parâmetro para o Onboarding terminar o fluxo.
-      navigation.navigate('Onboarding', {
+      navigation.navigate('AuthSetup', {
         tempToken: response.token,
         tempUser: { ...response.user, name },
       });
