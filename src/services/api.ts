@@ -65,61 +65,44 @@ export const userService = {
   },
 };
 
-// ── CACHE LOCAL DE REFEIÇÕES ──────────────────────────────────────────────────
-// O WAF corporativo da Oracle (Akamai/CDN) bloqueia TODOS os GETs vindos de
-// apps mobile para oracleapex.com, retornando a página "fw_error_www" com 403.
-// O bypass de Origin funciona apenas para POST. Não existe header que resolva isso.
-// Solução: cache local no AsyncStorage. create() grava no Oracle + local.
-//          list() lê do local. Os dados chegam ao Oracle via POST normalmente.
-
-const MEALS_KEY = 'nutryon_meals_cache';
-
-const readMealsCache = async (userId: string): Promise<any[]> => {
-  try {
-    const json = await AsyncStorage.getItem(MEALS_KEY);
-    if (!json) return [];
-    const all: any[] = JSON.parse(json);
-    return all.filter(m => String(m.userId) === String(userId));
-  } catch {
-    return [];
-  }
-};
-
-const appendMealToCache = async (meal: any): Promise<void> => {
-  try {
-    const json = await AsyncStorage.getItem(MEALS_KEY);
-    const all: any[] = json ? JSON.parse(json) : [];
-    all.push(meal);
-    await AsyncStorage.setItem(MEALS_KEY, JSON.stringify(all));
-  } catch {}
-};
-
-const updateMealInCache = async (id: string, updates: any): Promise<void> => {
-  try {
-    const json = await AsyncStorage.getItem(MEALS_KEY);
-    const all: any[] = json ? JSON.parse(json) : [];
-    const updated = all.map(m => m.id === id ? { ...m, ...updates } : m);
-    await AsyncStorage.setItem(MEALS_KEY, JSON.stringify(updated));
-  } catch {}
-};
-
-const deleteMealFromCache = async (id: string): Promise<void> => {
-  try {
-    const json = await AsyncStorage.getItem(MEALS_KEY);
-    const all: any[] = json ? JSON.parse(json) : [];
-    await AsyncStorage.setItem(MEALS_KEY, JSON.stringify(all.filter(m => m.id !== id)));
-  } catch {}
-};
-
 // ── CRUD DE REFEIÇÕES — Oracle APEX ──────────────────────────────────────────
 
 export const mealService = {
   list: async () => {
-    const userId = await getStoredUserId();
-    if (!userId) return [];
-    const meals = await readMealsCache(userId);
-    console.log(`[API] Cache local: ${meals.length} refeição(ões) para ID ${userId}`);
-    return meals;
+    try {
+      const userId = await getStoredUserId();
+      if (!userId) {
+        console.warn("[mealService.list] Sem ID de usuário no storage");
+        return [];
+      }
+      
+      console.log(`[API] Driblando WAF: Usando POST para buscar refeições do ID: ${userId}`);
+
+      // 1. Mudamos a rota para a nova que você criou: /refeicoes/buscar/
+      // 2. Mudamos o método para api.post
+      // 3. Mandamos o id_usuario no "corpo" (body) da requisição
+      const { data } = await api.post(`${APEX_BASE}/refeicoes/buscar/`, {
+        id_usuario: Number(userId)
+      });
+
+      // O nosso PL/SQL lá do banco vai devolver os dados dentro de "items"
+      const allItems = data?.items ?? data ?? [];
+
+      return allItems.map((item: any, index: number) => ({
+        id:        String(item.id_refeicao || item.ID_REFEICAO || item.id || index),
+        name:      item.nome_refeicao || item.NOME_REFEICAO || 'Refeição',
+        // Colocando os parênteses para o JavaScript não se perder:
+        kcal:      Number((item.calorias || item.CALORIAS) ?? 0),
+        protein:   Number((item.proteinas || item.PROTEINAS) ?? 0),
+        carbs:     Number((item.carboidratos || item.CARBOIDRATOS) ?? 0),
+        fat:       Number((item.gorduras || item.GORDURAS) ?? 0),
+        userId:    String(item.id_usuario || item.ID_USUARIO),
+        timestamp: (item.data_registro || item.DATA_REGISTRO) ?? new Date().toISOString(),
+      }));
+    } catch (e: any) {
+      console.error('[mealService.list ERROR]', e.message);
+      return [];
+    }
   },
 
   create: async (meal: any) => {
@@ -134,56 +117,25 @@ export const mealService = {
       gorduras:      Number(meal.fat      ?? 0),
     });
 
-    await appendMealToCache({
-      id:        String(data.id_refeicao ?? `local_${Date.now()}`),
-      name:      meal.name,
-      kcal:      Number(meal.kcal    ?? 0),
-      protein:   Number(meal.protein ?? 0),
-      carbs:     Number(meal.carbs   ?? 0),
-      fat:       Number(meal.fat     ?? 0),
-      userId:    String(userId),
-      timestamp: new Date().toISOString(),
-    });
-
     return data;
   },
 
   update: async (id: string, meal: any) => {
     // Tenta PUT no Oracle (mesmo bypass de headers do POST)
-    try {
-      await api.put(`${APEX_BASE}/refeicoes/${id}`, {
-        nome_refeicao: meal.name,
-        calorias:      Number(meal.kcal    ?? 0),
-        proteinas:     Number(meal.protein ?? 0),
-        carboidratos:  Number(meal.carbs   ?? 0),
-        gorduras:      Number(meal.fat     ?? 0),
-      });
-    } catch (e: any) {
-      console.warn('[API] PUT Oracle falhou, atualizando apenas cache:', e?.response?.status);
-    }
-
-    // Sempre atualiza o cache local para refletir na UI
-    await updateMealInCache(id, {
-      name:    meal.name,
-      kcal:    Number(meal.kcal    ?? 0),
-      protein: Number(meal.protein ?? 0),
-      carbs:   Number(meal.carbs   ?? 0),
-      fat:     Number(meal.fat     ?? 0),
+    const { data } = await api.put(`${APEX_BASE}/refeicoes/${id}`, {
+      nome_refeicao: meal.name,
+      calorias:      Number(meal.kcal    ?? 0),
+      proteinas:     Number(meal.protein ?? 0),
+      carboidratos:  Number(meal.carbs   ?? 0),
+      gorduras:      Number(meal.fat     ?? 0),
     });
-
+    
     return { id, ...meal };
   },
 
   delete: async (id: string) => {
     // Tenta DELETE no Oracle
-    try {
-      await api.delete(`${APEX_BASE}/refeicoes/${id}`);
-    } catch (e: any) {
-      console.warn('[API] DELETE Oracle falhou, removendo apenas do cache:', e?.response?.status);
-    }
-
-    // Sempre remove do cache local
-    await deleteMealFromCache(id);
+    await api.delete(`${APEX_BASE}/refeicoes/${id}`);
   },
 };
 
