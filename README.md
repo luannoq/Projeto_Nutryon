@@ -1,25 +1,30 @@
-# Nutryon — Aplicativo de Nutrição e Controle de Macros
+# 🍏 Nutryon — Aplicativo de Nutrição e Controle de Macros
 
 **Sprint 3 — Mobile App Development | FIAP**
 
-**Autores:** Victor Rodrigues De Lima Lourenço (RM560087) e Renato Silva Alexandre Bezerra (RM560928)
+**Autores:** 
+Victor Rodrigues De Lima Lourenco | RM560087
+Renato Silva Alexandre Bezerra | RM560928
+Luann Noqueli Klochko | RM560313V
+Lucas Higuti Fontanezi  |  RM561120
+
 
 ---
 
 ## 📖 Descrição do Problema
 
-Pessoas que buscam melhorar a dieta enfrentam cálculos complexos de calorias e macronutrientes, baixa aderência ao registro manual e falta de confiabilidade nos aplicativos disponíveis. O Nutryon resolve isso com cálculo automático de TDEE e macros via Oracle APEX, registro rápido de refeições e relatórios de consumo diário.
+Pessoas que buscam melhorar a dieta enfrentam cálculos complexos de calorias e macronutrientes, baixa aderência ao registro manual e falta de confiabilidade nos aplicativos disponíveis. O **Nutryon** resolve esse problema através do cálculo automático de TDEE e macros executado diretamente no banco de dados Oracle APEX, além de oferecer um registro rápido de refeições e relatórios visuais de consumo diário.
 
 ---
 
 ## 💡 Solução Proposta
 
-Aplicativo mobile que:
-1. Autentica o usuário via **Firebase Auth**
-2. Coleta dados físicos (peso, altura, idade, objetivo) no **Onboarding**
-3. Envia esses dados ao **Oracle APEX**, que executa a função PL/SQL `fn_calcular_tdee` e retorna o TDEE e a divisão de macros (proteína, carboidrato, gordura)
-4. Permite registrar, editar e excluir refeições diárias com CRUD completo
-5. Exibe um **Dashboard** com consumo vs. meta e **Relatórios** históricos por dia
+Um aplicativo mobile robusto que:
+1. Autentica o usuário de forma segura via **Firebase Auth**.
+2. Coleta dados físicos (peso, altura, idade, sexo, nível de atividade e objetivo) através de um **Onboarding** interativo.
+3. Envia os dados coletados ao **Oracle APEX**, que executa a função PL/SQL `fn_calcular_tdee` no lado do servidor e retorna o TDEE e a divisão exata de macronutrientes (proteína, carboidrato, gordura).
+4. Permite registrar, listar, editar e excluir refeições diárias com **CRUD completo 100% integrado à API**.
+5. Exibe um **Dashboard** com o consumo atual vs. meta e **Relatórios** históricos por dia.
 
 ---
 
@@ -27,84 +32,83 @@ Aplicativo mobile que:
 
 | Camada | Tecnologia |
 |---|---|
-| Mobile Framework | React Native (Expo) + TypeScript |
-| Autenticação | Firebase Auth (email/senha) |
-| Backend / Banco | Oracle APEX (ORDS REST) + PL/SQL |
-| Navegação | React Navigation (Native Stack + Bottom Tabs) |
-| Estado assíncrono | TanStack Query (`useQuery`, `useMutation`) |
-| HTTP Client | Axios |
-| Persistência local | AsyncStorage |
+| **Mobile Framework** | React Native (Expo) + TypeScript |
+| **Autenticação** | Firebase Auth (Email/Senha) |
+| **Backend / Banco** | Oracle APEX (ORDS REST) + PL/SQL |
+| **Navegação** | React Navigation (Native Stack + Bottom Tabs) |
+| **Estado Assíncrono** | TanStack Query (`useQuery`, `useMutation`) |
+| **HTTP Client** | Axios (com configuração global e headers) |
+| **Persistência de Sessão** | AsyncStorage |
 
 ---
 
 ## 📂 Estrutura do Projeto
 
-```
+A arquitetura foi desenhada focando na separação clara de responsabilidades (UI, Estado e Serviços HTTP):
+
+```text
 src/
-├── context/        # AuthContext (sessão) e ThemeContext (claro/escuro)
-├── hooks/          # useApi.ts — hooks TanStack Query isolados da UI
+├── context/        # AuthContext (controle de sessão) e ThemeContext (claro/escuro)
+├── hooks/          # useApi.ts — abstração do TanStack Query isolado da UI
 ├── pages/          # Login, Register, Onboarding, Dashboard, MealLog, Reports, Profile
-├── routes/         # index.tsx — React Navigation (AuthStack + AppStack + TabNavigator)
-├── services/       # api.ts — Axios + cache local + bypass WAF Oracle
-└── types.ts        # Tipos TypeScript (User, Meal, AuthState)
+├── routes/         # index.tsx — React Navigation (AuthStack, AppStack e TabNavigator)
+├── services/       # api.ts — Instância Axios e funções de bypass do WAF da Oracle
+└── types.ts        # Tipagem global TypeScript (User, Meal, AuthState)
 ```
-
----
-
 ## ⚙️ Como Executar
 
 ### Pré-requisitos
 - Node.js 18+
 - Expo CLI (`npm install -g expo-cli`)
-- Expo Go instalado no celular Android/iOS
+- Expo Go instalado no dispositivo físico (Android/iOS) ou Emulador
 
-### Passos
+### Passos para rodar localmente
 
 ```bash
-# 1. Instalar dependências
+# 1. Clone o repositório e acesse a pasta do projeto
+
+# 2. Instale as dependências
 npm install
 
-# 2. Iniciar o servidor Metro
-npx expo start
+# 3. Limpe o cache e inicie o servidor Metro Bundler
+npx expo start -c
 
-# 3. Escanear o QR code com o Expo Go no celular
+# 4. Escaneie o QR Code com o aplicativo Expo Go
 ```
+## 🔗 Integração com Oracle APEX e Solução de Arquitetura
 
----
+O backend utiliza a infraestrutura do Oracle APEX Free Tier (`oracleapex.com`) utilizando o ORDS como camada de serviços RESTful.
 
-## 🔗 Integração com Oracle APEX
-
-O backend utiliza Oracle APEX Free Tier (`oracleapex.com`) com ORDS como camada REST.
-
-**Endpoints principais:**
+**Endpoints Mapeados:**
 
 | Método | Endpoint | Função |
 |---|---|---|
-| POST | `/api/usuarios/` | Cadastro/sincronização de usuário |
-| POST | `/api/calcular_macros/` | Executa PL/SQL `fn_calcular_tdee` |
-| POST | `/api/refeicoes/` | Cria refeição na `TBL_REFEICOES` |
-| PUT | `/api/refeicoes/:id` | Atualiza refeição |
-| DELETE | `/api/refeicoes/:id` | Remove refeição |
+| `POST` | `/api/usuarios/` | Cadastro e sincronização de identidade do usuário |
+| `POST` | `/api/calcular_macros/` | Aciona a function PL/SQL `fn_calcular_tdee` |
+| `POST` | `/api/refeicoes/` | Criação de uma nova refeição na `TBL_REFEICOES` |
+| `POST` | `/api/refeicoes/buscar/` | **[WAF BYPASS]** Leitura da lista de refeições do usuário |
+| `PUT` | `/api/refeicoes/:id` | Atualiza os dados de uma refeição existente |
+| `DELETE` | `/api/refeicoes/:id` | Remove uma refeição do banco de dados |
 
-> **Nota sobre o WAF:** O Oracle Free Tier possui um WAF corporativo (Akamai) que bloqueia requisições GET de apps mobile com o erro `fw_error_www` / 403. A solução adotada usa AsyncStorage como cache local para leitura de refeições, enquanto todas as escritas (POST/PUT/DELETE) chegam ao Oracle normalmente via bypass de headers (`Origin: https://oracleapex.com`).
+> 🚨 **Engenharia de Redes / Bypass do WAF (Web Application Firewall):**
+> O ambiente gratuito da Oracle utiliza um firewall corporativo (Akamai CDN) que bloqueia sumariamente requisições originadas do método `GET` por aplicações mobile (erro `fw_error_www` / `403 Forbidden`). 
+> **Solução implementada:** Para garantir que a aplicação realize integrações reais com o banco de dados (sem depender de simulações com dados mockados ou caches locais), mapeamos um handler exclusivo utilizando o método `POST` (`/refeicoes/buscar/`). Este endpoint recebe o ID do usuário no corpo da requisição e executa um script PL/SQL (`apex_json`) que devolve a lista de refeições estruturada, contornando a restrição de rede do firewall.
 
 ---
 
 ## 🎨 Tema Claro / Escuro
 
-O app suporta modo claro e escuro em todas as telas. O toggle está disponível no header do app (ícone de lua/sol). O estado é gerenciado pelo `ThemeContext`.
+O design do Nutryon suporta modo Claro e Escuro de forma nativa e responsiva em todas as telas. A alternância é feita manualmente pelo usuário através do ícone no Header da aplicação, com o estado sendo gerido globalmente pelo `ThemeContext`.
 
 ---
 
-## ✅ Funcionalidades Implementadas (Sprint 3)
+## ✅ Funcionalidades Implementadas (Checklist da Sprint 3)
 
-- [x] 7 telas distintas com navegação por React Navigation
-- [x] Autenticação real com Firebase Auth (email/senha)
-- [x] Sincronização Firebase → Oracle APEX (ID numérico)
-- [x] Cálculo de TDEE e macros via PL/SQL no Oracle APEX
-- [x] CRUD completo de refeições (criar, listar, editar, excluir)
-- [x] Dashboard com consumo vs. meta calórica diária
-- [x] Relatórios de histórico por dia
-- [x] Estados de loading em todas as operações assíncronas
-- [x] Tema claro e escuro com alternância em tempo real
-- [x] Persistência de sessão (não precisa logar novamente)
+- [x] Aplicativo com 7 telas distintas fluindo via React Navigation.
+- [x] Autenticação Real utilizando o Firebase Auth.
+- [x] Sincronização Dupla: Firebase gerenciando a segurança da credencial e Oracle APEX gerindo o ID relacional.
+- [x] Regra de Negócio no Backend: Cálculo de TDEE via PL/SQL acionado pelo frontend.
+- [x] CRUD Completo: Inserção, leitura, atualização e exclusão de refeições integradas 100% à nuvem (sem dados simulados).
+- [x] Gestão de estado assíncrono profissional com TanStack Query (exibindo Loading states automáticos em operações demoradas).
+- [x] Dashboard dinâmico comparando consumo vs. meta calórica.
+- [x] Persistência contínua de sessão de usuário.
