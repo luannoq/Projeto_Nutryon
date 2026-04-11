@@ -3,10 +3,17 @@
 **Sprint 3 — Mobile App Development | FIAP**
 
 ## 👥 Integrantes
-- **Renato** (RM560928)
-- **Victor** (RM560087)
-- **Luan Noqueli Klochko** (RM560313)
+- **Renato Silva Alexandre Bezerra** (RM560928)
+- **Victor Rodrigues De Lima** (RM560087)
+- **Luann Noqueli Klochko** (RM560313)
 - **Lucas Higuti Fontanezi** (RM561120)
+
+---
+## 🎥 Vídeo de Apresentação
+
+Demonstração completa do aplicativo Nutryon funcionando na Sprint 3, cobrindo: autenticação, navegação, CRUD de refeições, integração com Oracle APEX e arquitetura do código.
+
+▶️ [Assistir no YouTube](https://youtu.be/k7_Uwum0Qhc)
 
 ---
 
