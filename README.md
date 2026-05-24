@@ -165,6 +165,8 @@ Comando de build do APK de distribuição:
 ```bash
 npx eas build --platform android --profile preview
 ```
+O APK gerado foi publicado no **Firebase App Distribution** e os avaliadores 
+foram cadastrados como testers para acesso direto ao binário.
 
 ### ✅ Checklist da Sprint 4
 
@@ -175,3 +177,4 @@ npx eas build --platform android --profile preview
 - [x] **Plugin expo-notifications** e permissões Android declarados no `app.json`
 - [x] **Filtro de refeições por data** no Dashboard (consumo correto do dia corrente)
 - [x] **Nenhuma tela ou funcionalidade da Sprint 3 foi removida ou descaracterizada**
+- [x] **APK publicado no Firebase App Distribution** com professores cadastrados como testers
