@@ -1,6 +1,6 @@
 # 🍏 Nutryon — Aplicativo de Nutrição e Controle de Macros
 
-**Sprint 3 — Mobile App Development | FIAP**
+**Sprint 4 — Mobile App Development | FIAP**
 
 ## 👥 Integrantes
 - **Renato Silva Alexandre Bezerra** (RM560928)
@@ -55,8 +55,8 @@ A arquitetura foi desenhada focando na separação clara de responsabilidades (U
 ```text
 src/
 ├── context/        # AuthContext (controle de sessão) e ThemeContext (claro/escuro)
-├── hooks/          # useApi.ts — abstração do TanStack Query isolado da UI
-├── pages/          # Login, Register, Onboarding, Dashboard, MealLog, Reports, Profile
+├── hooks/          # useApi.ts (TanStack Query) e useNotifications.ts (notificações locais)
+├── pages/          # Login, Register, Onboarding, Dashboard, MealLog, Reports, Profile, AboutApp
 ├── routes/         # index.tsx — React Navigation (AuthStack, AppStack e TabNavigator)
 ├── services/       # api.ts — Instância Axios e funções de bypass do WAF da Oracle
 └── types.ts        # Tipagem global TypeScript (User, Meal, AuthState)
@@ -118,3 +118,57 @@ O design do Nutryon suporta modo Claro e Escuro de forma nativa e responsiva em 
 - [x] Gestão de estado assíncrono profissional com TanStack Query (exibindo Loading states automáticos em operações demoradas).
 - [x] Dashboard dinâmico comparando consumo vs. meta calórica.
 - [x] Persistência contínua de sessão de usuário.
+
+---
+
+## 🚀 Novidades da Sprint 4
+
+A Sprint 4 consolida o projeto com a camada de **engajamento (notificações locais)**, **identidade do release (tela Sobre o App)** e **infraestrutura de publicação (EAS Build + Firebase App Distribution)**.
+
+### 🔔 Notificações Locais (`expo-notifications`)
+
+Hook centralizado em [src/hooks/useNotifications.ts](src/hooks/useNotifications.ts) com três cenários reais conectados ao contexto do app:
+
+| Método | Quando dispara | O que faz |
+|---|---|---|
+| `requestPermission()` | Inicialização do app (`App.tsx`) | Solicita permissão e cria o canal de notificação Android (`default`) |
+| `scheduleDaily()` | Após login (`Login.tsx`) e ao finalizar o Onboarding (`Onboarding.tsx`) | Agenda dois lembretes diários recorrentes: **12h** (almoço) e **19h** (revisão do dia) usando trigger `DAILY` real do SDK |
+| `checkCalorieThreshold(consumed, tdee)` | No `Dashboard` quando as refeições do dia carregam | Dispara um alerta imediato quando o consumo atinge **≥ 90%** do TDEE do usuário (uso de `useRef` para evitar disparos duplicados na mesma sessão) |
+
+O `Dashboard` agora filtra as refeições por **data de hoje** antes de avaliar o threshold, garantindo que o alerta reflete o consumo do dia corrente.
+
+### ℹ️ Tela "Sobre o App"
+
+Nova tela em [src/pages/AboutApp.tsx](src/pages/AboutApp.tsx), acessível pelo `Profile`, exibindo:
+- Nome, versão e **hash do commit** de referência do release publicado
+- Stack técnica (React Native + Expo SDK 54, Oracle APEX/ORDS)
+- Lista dos integrantes do grupo com RMs
+
+A rota foi registrada no `AppStack` em [src/routes/index.tsx](src/routes/index.tsx).
+
+### 👤 Tela de Perfil reorganizada
+
+[src/pages/Profile.tsx](src/pages/Profile.tsx) ganhou dois botões secundários:
+- **Refazer Onboarding** — navega para `Onboarding` com `isUpdate: true`, permitindo recalcular metas sem perder a conta
+- **Sobre o App** — navega para a nova tela `AboutApp`
+
+### 📦 Infraestrutura de Build & Distribuição
+
+- [eas.json](eas.json) — perfis `development`, `preview` (APK para distribuição interna via Firebase) e `production`
+- [app.json](app.json) — plugin `expo-notifications` configurado, permissões Android (`POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `VIBRATE`) e `package: com.luannoq.nutryonmobile` para o build EAS
+
+Comando de build do APK de distribuição:
+
+```bash
+npx eas build --platform android --profile preview
+```
+
+### ✅ Checklist da Sprint 4
+
+- [x] **Notificações locais reais** (lembretes diários + alerta de threshold calórico) integradas ao fluxo do app
+- [x] **Tela "Sobre o App"** com hash do commit e integrantes
+- [x] **Permissão de notificação** solicitada na inicialização
+- [x] **EAS Build** configurado para gerar APK de distribuição interna
+- [x] **Plugin expo-notifications** e permissões Android declarados no `app.json`
+- [x] **Filtro de refeições por data** no Dashboard (consumo correto do dia corrente)
+- [x] **Nenhuma tela ou funcionalidade da Sprint 3 foi removida ou descaracterizada**
