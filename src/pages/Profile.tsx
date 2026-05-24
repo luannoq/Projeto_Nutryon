@@ -12,6 +12,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useUpdateProfile } from '../hooks/useApi';
+import { useNavigation } from '@react-navigation/native';
 
 export default function Profile() {
   const { themeMode } = useTheme();
@@ -20,6 +21,7 @@ export default function Profile() {
 
   const { user, logout, updateUser } = useAuth();
   const updateProfile = useUpdateProfile();
+  const navigation = useNavigation<any>();
   
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -151,6 +153,27 @@ export default function Profile() {
           </Text>
         </View>
 
+        {/* Botões de navegação — Sprint 4 */}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[styles.actionButton, theme.actionButtonSecondary]}
+            onPress={() => navigation.navigate('Onboarding', { isUpdate: true })}
+          >
+            <Text style={[styles.actionButtonText, theme.primaryText]}>
+              Refazer Onboarding
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, theme.actionButtonSecondary]}
+            onPress={() => navigation.navigate('AboutApp')}
+          >
+            <Text style={[styles.actionButtonText, theme.primaryText]}>
+              Sobre o App
+            </Text>
+          </TouchableOpacity>
+        </View>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -279,10 +302,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600'
   },
-  goalValue: { 
-    fontSize: 18, 
+  goalValue: {
+    fontSize: 18,
     fontWeight: '900',
     letterSpacing: -0.5
+  },
+  actionButtons: {
+    marginTop: 24,
+    gap: 12,
+  },
+  actionButton: {
+    paddingVertical: 18,
+    borderRadius: 24,
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  actionButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });
 
@@ -323,7 +361,11 @@ const lightTheme = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 8,
-  }
+  },
+  actionButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderColor: '#0058bb',
+  },
 });
 
 const darkTheme = StyleSheet.create({
@@ -363,5 +405,9 @@ const darkTheme = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 16,
     elevation: 8,
-  }
+  },
+  actionButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderColor: '#6C9FFF',
+  },
 });

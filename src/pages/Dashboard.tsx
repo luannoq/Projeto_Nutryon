@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ScrollView,
@@ -10,6 +10,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useMeals } from '../hooks/useApi';
+import { useNotifications } from '../hooks/useNotifications';
 
 export default function Dashboard() {
   const { themeMode } = useTheme();
@@ -23,20 +24,43 @@ export default function Dashboard() {
   const tdee   = user?.tdee   ?? null;
   const macros = user?.macros ?? null;
 
-  // ── Totais consumidos calculados a partir das refeições do dia ─────────────
-  const consumed = Array.isArray(meals)
-    ? meals.reduce(
-        (acc, meal) => ({
-          kcal:    acc.kcal    + (meal.kcal    || 0),
-          protein: acc.protein + (meal.protein || 0),
-          carbs:   acc.carbs   + (meal.carbs   || 0),
-          fat:     acc.fat     + (meal.fat     || 0),
-        }),
-        { kcal: 0, protein: 0, carbs: 0, fat: 0 }
-      )
-    : { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  // ── Filtra apenas as refeições de HOJE ────────────────────────────────────
+  const today = new Date().toLocaleDateString('pt-BR');
+  const todayMeals = Array.isArray(meals)
+    ? meals.filter((meal) => {
+        const mealDate = meal.timestamp
+          ? new Date(meal.timestamp).toLocaleDateString('pt-BR')
+          : new Date().toLocaleDateString('pt-BR');
+        return mealDate === today;
+      })
+    : [];
+
+  // ── Totais consumidos calculados apenas com refeições de hoje ─────────────
+  const consumed = todayMeals.reduce(
+    (acc, meal) => ({
+      kcal:    acc.kcal    + (meal.kcal    || 0),
+      protein: acc.protein + (meal.protein || 0),
+      carbs:   acc.carbs   + (meal.carbs   || 0),
+      fat:     acc.fat     + (meal.fat     || 0),
+    }),
+    { kcal: 0, protein: 0, carbs: 0, fat: 0 }
+  );
 
   const remainingKcal = tdee != null ? Math.max(tdee - consumed.kcal, 0) : null;
+
+  const { checkCalorieThreshold } = useNotifications();
+
+  // useRef para não disparar o alerta mais de uma vez por sessão
+  const alertFired = useRef(false);
+
+  useEffect(() => {
+    if (!mealsLoading && tdee && consumed.kcal > 0 && !alertFired.current) {
+      if (consumed.kcal >= tdee * 0.9) {
+        alertFired.current = true;
+        checkCalorieThreshold(consumed.kcal, tdee);
+      }
+    }
+  }, [consumed.kcal, tdee, mealsLoading]);
 
   // Helper para exibir "consumido / meta" nos cards de macro
   const macroLabel = (consumed: number, goal: number | undefined) =>

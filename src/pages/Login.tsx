@@ -12,6 +12,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { userService } from '../services/api';
+import { useNotifications } from '../hooks/useNotifications';
 
 export default function Login() {
   const { themeMode } = useTheme();
@@ -24,6 +25,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const { login } = useAuth();
   const navigation = useNavigation<any>();
+  const { scheduleDaily } = useNotifications();
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -62,8 +64,11 @@ export default function Login() {
       // Isso é o que libera o salvamento das refeições!
       await login(response.token, {
         ...response.user,
-        id: oracleUser.id 
+        id: oracleUser.id
       });
+
+      // NOVO — Sprint 4: agenda lembretes diários após login
+      await scheduleDaily();
 
     } catch (err: any) {
       console.error("[LOGIN ERROR]", err.message);

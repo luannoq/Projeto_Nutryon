@@ -12,6 +12,7 @@ import Dashboard  from '../pages/Dashboard';
 import MealLog    from '../pages/MealLog';
 import Reports    from '../pages/Reports';
 import Profile    from '../pages/Profile';
+import AboutApp from '../pages/AboutApp';
 
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -117,6 +118,8 @@ function AppNavigator() {
       <AppStack.Screen name="MainTabs" component={TabNavigator} options={{ headerTitle: 'Nutryon' }} />
       {/* Mantemos o Onboarding aqui caso o usuário queira refazer pelo Perfil depois */}
       <AppStack.Screen name="Onboarding" component={Onboarding} options={{ headerTitle: 'Atualizar Metas', headerShown: true }} />
+      {/* NOVO — Sprint 4 */}
+      <AppStack.Screen name="AboutApp" component={AboutApp} options={{ headerTitle: 'Sobre o App', headerShown: true }} />
     </AppStack.Navigator>
   );
 }

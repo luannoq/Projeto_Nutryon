@@ -6,7 +6,39 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "plugins": [
-      "expo-asset"
-    ]
+      "expo-asset",
+      [
+        "expo-notifications",
+        {
+          "color": "#0058bb",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ]
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0058bb"
+      },
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "package": "com.luannoq.nutryonmobile"
+    },
+    "ios": {
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "8d6d9b56-66f1-4dc0-88cd-244cf5f86006"
+      }
+    }
   }
 }

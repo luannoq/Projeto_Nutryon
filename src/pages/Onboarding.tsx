@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { apexService, userService } from '../services/api';
 import { Alert } from 'react-native';
+import { useNotifications } from '../hooks/useNotifications';
 
 export default function Onboarding() {
   const navigation = useNavigation<any>();
@@ -27,6 +28,8 @@ export default function Onboarding() {
   const [step, setStep]               = useState(1);
   const [isCalculating, setIsCalculating] = useState(false);
   const [macrosResult, setMacrosResult]   = useState<any>(null);
+
+  const { scheduleDaily } = useNotifications();
 
   // Pré-preenche com dados do usuário logado se for revisão
   const [data, setData] = useState({
@@ -97,8 +100,11 @@ export default function Onboarding() {
           macros:        macrosResult?.macros,
         });
 
+        // NOVO — Sprint 4: agenda notificações diárias após atualização
+        await scheduleDaily();
+
         // IMPORTANTE: Reseta o step para evitar que, ao voltar aqui, esteja no passo 7
-        setStep(1); 
+        setStep(1);
 
         const navState = navigation.getState();
         if (navState && navState.routeNames.includes('MainTabs')) {
@@ -128,9 +134,12 @@ export default function Onboarding() {
           macros:        macrosResult?.macros,
         };
 
+        // NOVO — Sprint 4: agenda notificações diárias antes de liberar o app
+        await scheduleDaily();
+
         // Reseta o step antes do login para garantir limpeza de estado
-        setStep(1); 
-        
+        setStep(1);
+
         // O login troca o motor de navegação
         await login(tempToken, finalUser);
       }
