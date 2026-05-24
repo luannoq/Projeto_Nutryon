@@ -15,6 +15,9 @@ Demonstração completa do aplicativo Nutryon funcionando na Sprint 3, cobrindo:
 
 ▶️ [Assistir no YouTube](https://youtu.be/k7_Uwum0Qhc)
 
+### Sprint 4 — Notificações + Sobre o App
+▶️ [Assistir no YouTube](https://youtu.be/AEdodBiof-I?si=7TfyFmcgTwZmD_j8)
+
 ---
 
 ## 📖 Descrição do Problema
